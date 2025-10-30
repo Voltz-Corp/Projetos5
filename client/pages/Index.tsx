@@ -4,10 +4,10 @@ import MapPanel from "@/components/MapPanel";
 import ChartsPanel from "@/components/ChartsPanel";
 import IAAlerts from "@/components/IAAlerts";
 import AdditionalChartsPanel from "@/components/AdditionalChartsPanel";
-import { demandByType, efficiencyByBairro, generateIncidents, kpis, recentRiskAlerts, seriesChamadosPorDia, resolucaoHistogram, statusPorTipo } from "@/lib/data";
+import { demandByType, efficiencyByBairro, getIncidents, kpis, recentRiskAlerts, seriesChamadosPorDia, resolucaoHistogram, statusPorTipo } from "@/lib/data";
 
 export default function Index() {
-  const incidents = useMemo(() => generateIncidents(420, 123), []);
+  const incidents = useMemo(() => getIncidents(), []);
   const k = useMemo(() => kpis(incidents), [incidents]);
   const demand = useMemo(() => demandByType(incidents), [incidents]);
   const efficiency = useMemo(() => efficiencyByBairro(incidents), [incidents]);
@@ -30,7 +30,7 @@ export default function Index() {
 
         <section className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
           <div className="xl:col-span-2">
-            <MapPanel incidents={incidents} />
+            <MapPanel />
           </div>
           <div className="xl:col-span-1">
             <IAAlerts alerts={alerts} />

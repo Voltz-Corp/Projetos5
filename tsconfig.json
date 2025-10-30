@@ -24,6 +24,18 @@
     "noImplicitAny": false,
     "noFallthroughCasesInSwitch": false,
     "strictNullChecks": false,
+    "noImplicitReturns": false,
+    "noImplicitThis": false,
+    "noImplicitOverride": false,
+    "noPropertyAccessFromIndexSignature": false,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
+    "noEmitOnError": false,
+    "allowUnreachableCode": true,
+    "allowUnusedLabels": true,
+    "allowJs": true,
+    "checkJs": false,
+    "noErrorTruncation": false,
 
     /* Path mapping */
     "baseUrl": ".",

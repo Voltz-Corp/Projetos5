@@ -1,3 +1,5 @@
+import { mockIncidents } from "./mock-incidents";
+
 export type IncidentType = "poda" | "risco" | "queda";
 export type IncidentStatus = "aberto" | "concluido" | "em_analise";
 
@@ -8,85 +10,9 @@ export interface Incident {
   bairro: string;
   lat: number;
   lng: number;
-  createdAt: number; // ms
-  resolvedAt?: number; // ms when concluded
-}
-
-// Approx Recife bounding box
-const LAT_MIN = -8.20;
-const LAT_MAX = -7.90;
-const LNG_MIN = -35.05;
-const LNG_MAX = -34.80;
-
-const BAIRROS = [
-  "Boa Viagem",
-  "Casa Forte",
-  "Espinheiro",
-  "Graças",
-  "Santo Amaro",
-  "Tamarineira",
-  "Casa Amarela",
-  "Várzea",
-  "Imbiribeira",
-  "Pina",
-  "Afogados",
-  "Madalena",
-  "Derby",
-  "Hip��dromo",
-  "Aflitos",
-];
-
-function seededRand(seed: number) {
-  // simple LCG for deterministic data
-  let s = seed >>> 0;
-  return () => {
-    s = (1664525 * s + 1013904223) % 0xffffffff;
-    return s / 0xffffffff;
-  };
-}
-
-export function generateIncidents(count = 350, seed = 42): Incident[] {
-  const rnd = seededRand(seed);
-  const now = Date.now();
-  const weekMs = 7 * 24 * 60 * 60 * 1000;
-
-  const incidents: Incident[] = [];
-  for (let i = 0; i < count; i++) {
-    const lat = LAT_MIN + (LAT_MAX - LAT_MIN) * rnd();
-    const lng = LNG_MIN + (LNG_MAX - LNG_MIN) * rnd();
-    const bairro = BAIRROS[Math.floor(rnd() * BAIRROS.length)];
-    const typeRand = rnd();
-    const type: IncidentType =
-      typeRand < 0.5 ? "poda" : typeRand < 0.8 ? "risco" : "queda";
-    const createdAt = now - Math.floor(rnd() * weekMs * 2); // last 14 days
-
-    // 40% open, 35% in analysis, 25% closed with resolution 1-72h
-    const statusRand = rnd();
-    let status: IncidentStatus;
-    let resolvedAt: number | undefined;
-    if (statusRand < 0.4) {
-      status = "aberto";
-      resolvedAt = undefined;
-    } else if (statusRand < 0.75) {
-      status = "em_analise";
-      resolvedAt = undefined;
-    } else {
-      status = "concluido";
-      resolvedAt = createdAt + Math.floor((1 + rnd() * 72) * 60 * 60 * 1000);
-    }
-
-    incidents.push({
-      id: `${i}`,
-      type,
-      status,
-      bairro,
-      lat,
-      lng,
-      createdAt,
-      resolvedAt,
-    });
-  }
-  return incidents;
+  createdAt: number | string;
+  resolvedAt?: number | string;
+  image: string;
 }
 
 export function kpis(incidents: Incident[]) {
@@ -94,7 +20,7 @@ export function kpis(incidents: Incident[]) {
   const risco = incidents.filter((i) => i.type === "risco").length;
   const resolved = incidents.filter((i) => i.status === "concluido");
   const avgMs =
-    resolved.reduce((acc, i) => acc + ((i.resolvedAt ?? i.createdAt) - i.createdAt), 0) /
+    resolved.reduce((acc, i) => acc + (new Date(i.resolvedAt as any).getTime() - new Date(i.createdAt as any).getTime()), 0) /
       Math.max(1, resolved.length);
   return {
     abertos,
@@ -126,7 +52,7 @@ export function efficiencyByBairro(incidents: Incident[]) {
 export function recentRiskAlerts(incidents: Incident[]) {
   // Simple heuristic: find bairro with high share of risk in last 48h
   const now = Date.now();
-  const last48 = incidents.filter((i) => now - i.createdAt < 48 * 60 * 60 * 1000);
+  const last48 = incidents.filter((i) => now - new Date(i.createdAt as any).getTime() < 48 * 60 * 60 * 1000);
   const by: Record<string, { risco: number; total: number }> = {};
   last48.forEach((i) => {
     by[i.bairro] ??= { risco: 0, total: 0 };
@@ -155,13 +81,15 @@ export function seriesChamadosPorDia(incidents: Incident[], days = 14) {
     buckets[key] = { criados: 0, concluidos: 0, risco: 0 };
   }
   incidents.forEach((i) => {
-    const k = new Date(new Date(i.createdAt).toISOString().slice(0, 10)).toISOString().slice(0, 10);
+    const createdAtDate = new Date(i.createdAt as any);
+    const k = `${createdAtDate.getFullYear()}-${String(createdAtDate.getMonth() + 1).padStart(2, '0')}-${String(createdAtDate.getDate()).padStart(2, '0')}`;
     if (buckets[k]) {
       buckets[k].criados += 1;
       if (i.type === "risco") buckets[k].risco += 1;
     }
     if (i.status === "concluido" && i.resolvedAt) {
-      const rk = new Date(new Date(i.resolvedAt).toISOString().slice(0, 10)).toISOString().slice(0, 10);
+      const resolvedAtDate = new Date(i.resolvedAt as any);
+      const rk = `${resolvedAtDate.getFullYear()}-${String(resolvedAtDate.getMonth() + 1).padStart(2, '0')}-${String(resolvedAtDate.getDate()).padStart(2, '0')}`;
       if (buckets[rk]) buckets[rk].concluidos += 1;
     }
   });
@@ -175,7 +103,7 @@ export function resolucaoHistogram(incidents: Incident[]) {
   incidents
     .filter((i) => i.status === "concluido" && i.resolvedAt)
     .forEach((i) => {
-      const h = (i.resolvedAt! - i.createdAt) / (60 * 60 * 1000);
+      const h = (new Date(i.resolvedAt as any).getTime() - new Date(i.createdAt as any).getTime()) / (60 * 60 * 1000);
       if (h <= bins[0]) map["0-6"]++;
       else if (h <= bins[1]) map["6-12"]++;
       else if (h <= bins[2]) map["12-24"]++;
@@ -194,4 +122,20 @@ export function statusPorTipo(incidents: Incident[]) {
     const concluido = ofType.filter((i) => i.status === "concluido").length;
     return { tipo: t, aberto, concluido };
   });
+}
+
+/**
+ * Synchronous accessor kept for backward compatibility (used by charts / KPIs).
+ */
+export function getIncidents(): Incident[] {
+  return mockIncidents;
+}
+
+/**
+ * Async fetch-like accessor to return the mocked incidents.
+ * MapPanel and other consumers that simulate network loading should use this.
+ */
+export async function fetchIncidents(): Promise<Incident[]> {
+  // Simulate an async fetch — keep very small delay so UI shows loading when desired.
+  return new Promise((resolve) => setTimeout(() => resolve(mockIncidents), 100));
 }

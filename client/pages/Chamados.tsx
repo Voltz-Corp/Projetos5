@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { generateIncidents, Incident } from "@/lib/data";
+import { useEffect, useMemo, useState } from "react";
+import { fetchIncidents, Incident } from "@/lib/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,23 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { MapContainer, TileLayer, Marker } from "react-leaflet";
+import { useSearchParams } from "react-router-dom";
 import "@/lib/leaflet";
+import L from "leaflet";
+
+function iconFor(inc: { type: string; status: string }) {
+  // Intelligent icon using DivIcon: status color + emoji per type
+  const emoji = inc.type === "poda" ? "✂️" : inc.type === "risco" ? "⚠️" : "🌳";
+  let bg: string;
+  if (inc.status === "aberto") bg = "#ef4444"; // red open
+  else if (inc.status === "em_analise") bg = "#2563eb"; // blue in analysis
+  else bg = "#10b981"; // green closed
+  const html = `
+    <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9999px;background:${bg};color:white;box-shadow:0 1px 4px rgba(0,0,0,.4);font-size:16px;">
+      <span>${emoji}</span>
+    </div>`;
+  return L.divIcon({ html, className: "", iconSize: [28, 28], iconAnchor: [14, 14] });
+}
 
 function phoneFor(id: string) {
   // deterministic optional phone based on id
@@ -32,25 +48,7 @@ function descricao(inc: Incident) {
 }
 
 function attachmentsFor(inc: Incident) {
-  const pool = inc.type === "risco"
-    ? [
-        "https://images.unsplash.com/photo-1518070572270-2ee99f1cb3a9?q=80&w=1080&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1505925456693-124134d66749?q=80&w=1080&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1502082553048-f009c37129b9?q=80&w=1080&auto=format&fit=crop",
-      ]
-    : inc.type === "queda"
-    ? [
-        "https://images.unsplash.com/photo-1470145318698-cb03732f5ddf?q=80&w=1080&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1506045412240-22980140a405?q=80&w=1080&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=1080&auto=format&fit=crop",
-      ]
-    : [
-        "https://images.unsplash.com/photo-1518837695005-2083093ee35b?q=80&w=1080&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=1080&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1520975922321-88c7a2f2b782?q=80&w=1080&auto=format&fit=crop",
-      ];
-  const count = (Number(inc.id) % 3) + 1;
-  return pool.slice(0, count).map((url, idx) => ({ url, alt: `${inc.type} ${idx + 1}` }));
+  return [{ src: inc.image, alt: `${inc.type} incident` }];
 }
 
 type Row = {
@@ -63,6 +61,7 @@ type Row = {
   lng: number;
   telefone?: string;
   dataHora: string;
+  image: string;
 };
 
 function buildRows(incidents: Incident[]): Row[] {
@@ -74,8 +73,9 @@ function buildRows(incidents: Incident[]): Row[] {
     local: i.bairro,
     lat: i.lat,
     lng: i.lng,
+    image: i.image,
     telefone: phoneFor(i.id),
-    dataHora: new Date(i.createdAt).toLocaleString("pt-BR"),
+    dataHora: new Date(i.createdAt as any).toLocaleString("pt-BR"),
   }));
 }
 
@@ -93,8 +93,29 @@ function exportChamadosJSON(rows: Row[]) {
 }
 
 export default function Chamados() {
-  const incidents = useMemo(() => generateIncidents(480, 321), []);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    fetchIncidents()
+      .then(setIncidents)
+      .finally(() => setLoading(false));
+  }, []);
+
   const rowsAll = useMemo(() => buildRows(incidents), [incidents]);
+
+  // Detect URL parameter for auto-opening modal
+  useEffect(() => {
+    const id = searchParams.get('id');
+    if (id && rowsAll.length > 0) {
+      const row = rowsAll.find(r => r.id === id);
+      if (row) {
+        setSelected(row);
+        setOpen(true);
+      }
+    }
+  }, [searchParams, rowsAll]);
 
   const [query, setQuery] = useState("");
   const [tipo, setTipo] = useState<string>("todos");
@@ -113,14 +134,17 @@ export default function Chamados() {
     });
   }, [rowsAll, query, tipo, status]);
 
-  const tipoPill = (t: Row["tipo"]) => (
-    <Badge className={cn(
-      "capitalize",
-      t === "poda" && "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200",
-      t === "risco" && "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200",
-      t === "queda" && "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-200",
-    )}>{t}</Badge>
-  );
+  const tipoPill = (t: Row["tipo"]) => {
+    const emoji = t === "poda" ? "✂️" : t === "risco" ? "⚠️" : "🌳";
+    return (
+      <Badge className={cn(
+        "capitalize",
+        t === "poda" && "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200",
+        t === "risco" && "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200",
+        t === "queda" && "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-200",
+      )}>{emoji} {t}</Badge>
+    );
+  };
 
   const statusPill = (s: Row["status"]) => {
     const label = s === "em_analise" ? "Em Análise" : s === "aberto" ? "Aberto" : "Concluído";
@@ -141,15 +165,16 @@ export default function Chamados() {
       t === "queda" && "hover:bg-sky-50 dark:hover:bg-sky-900/10",
     );
 
-  function LocationMap({ lat, lng }: { lat: number; lng: number }) {
+  function LocationMap({ lat, lng, type, status }: { lat: number; lng: number; type: string; status: string }) {
     return (
       <div className="w-full h-56 rounded-md overflow-hidden border">
+        {/* @ts-ignore */}
         <MapContainer key={`${lat},${lng}`} center={[lat, lng]} zoom={16} scrollWheelZoom={false} className="w-full h-full">
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <Marker position={[lat, lng]} />
+          <Marker position={[lat, lng]} icon={iconFor({ type, status })} />
         </MapContainer>
       </div>
     );
@@ -211,16 +236,24 @@ export default function Chamados() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((r) => (
-                    <TableRow key={r.id} className={rowTint(r.tipo)} onClick={() => { setSelected(r); setOpen(true); }} role="button">
-                      <TableCell className="whitespace-nowrap">{tipoPill(r.tipo)}</TableCell>
-                      <TableCell className="whitespace-nowrap">{statusPill(r.status)}</TableCell>
-                      <TableCell className="min-w-[360px]">{r.descricao}</TableCell>
-                      <TableCell className="whitespace-nowrap">{r.local}</TableCell>
-                      <TableCell className="whitespace-nowrap">{r.telefone ?? "—"}</TableCell>
-                      <TableCell className="whitespace-nowrap">{r.dataHora}</TableCell>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center">
+                        Carregando...
+                      </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    rows.map((r) => (
+                      <TableRow key={r.id} className={rowTint(r.tipo)} onClick={() => { setSelected(r); setOpen(true); }} role="button">
+                        <TableCell className="whitespace-nowrap">{tipoPill(r.tipo)}</TableCell>
+                        <TableCell className="whitespace-nowrap">{statusPill(r.status)}</TableCell>
+                        <TableCell className="min-w-[360px]">{r.descricao}</TableCell>
+                        <TableCell className="whitespace-nowrap">{r.local}</TableCell>
+                        <TableCell className="whitespace-nowrap">{r.telefone ?? "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap">{r.dataHora}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -245,12 +278,10 @@ export default function Chamados() {
                 </div>
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Localização</div>
-                  <LocationMap lat={selected.lat} lng={selected.lng} />
+                  <LocationMap lat={selected.lat} lng={selected.lng} type={selected.tipo} status={selected.status} />
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {attachmentsFor({ id: selected.id, type: selected.tipo, status: selected.status as any, bairro: selected.local, lat: selected.lat, lng: selected.lng, createdAt: 0 }).map((img) => (
-                    <img key={img.url} src={img.url} alt={img.alt} className="rounded-md w-full h-28 object-cover" />
-                  ))}
+                    <img key={selected.image} src={selected.image} alt={selected.alt} className="rounded-md w-full h-28 object-cover" />
                 </div>
               </div>
             )}

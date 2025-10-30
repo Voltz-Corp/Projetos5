@@ -1,16 +1,34 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import AdditionalChartsPanel from "@/components/AdditionalChartsPanel";
-import { generateIncidents, kpis, seriesChamadosPorDia, resolucaoHistogram, statusPorTipo } from "@/lib/data";
+import { fetchIncidents, Incident, kpis, seriesChamadosPorDia, resolucaoHistogram, statusPorTipo } from "@/lib/data";
 import { exportCSV, exportJSON, exportPDF } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 
 export default function Relatorios() {
-  const incidents = useMemo(() => generateIncidents(600, 456), []);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchIncidents()
+      .then(setIncidents)
+      .finally(() => setLoading(false));
+  }, []);
+
   const k = useMemo(() => kpis(incidents), [incidents]);
   const series = useMemo(() => seriesChamadosPorDia(incidents, 14), [incidents]);
   const sla = useMemo(() => resolucaoHistogram(incidents), [incidents]);
   const statusTipo = useMemo(() => statusPorTipo(incidents), [incidents]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-background">
+        <div className="container py-8 text-center">
+          <p>Carregando relatórios...</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-background">
