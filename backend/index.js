@@ -507,6 +507,313 @@ app.get('/api/analytics', async (req, res) => {
   }
 });
 
+// ============================================================================
+// GEOSPATIAL / CENSO ARBÓREO ENDPOINTS
+// ============================================================================
+
+// Helper function to parse CSV - SEM PROCESSAMENTO, APENAS LÊ
+// Lida com campos entre aspas que contêm vírgulas e aspas duplas escapadas
+function parseCSV(csvText) {
+  const lines = csvText.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim());
+  
+  return lines.slice(1).map(line => {
+    const obj = {};
+    const values = [];
+    let currentValue = '';
+    let insideQuotes = false;
+    
+    // Parse manual respeitando aspas
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+      
+      if (char === '"') {
+        if (insideQuotes && nextChar === '"') {
+          // Aspas duplas escapadas ("")
+          currentValue += '"';
+          i++; // Skip next quote
+        } else {
+          // Toggle quote state
+          insideQuotes = !insideQuotes;
+        }
+      } else if (char === ',' && !insideQuotes) {
+        // Fim do campo
+        values.push(currentValue.trim());
+        currentValue = '';
+      } else {
+        currentValue += char;
+      }
+    }
+    
+    // Último campo
+    values.push(currentValue.trim());
+    
+    // Mapear valores para headers
+    headers.forEach((header, i) => {
+      obj[header] = values[i] || '';
+    });
+    
+    return obj;
+  });
+}
+
+// GET /api/geo/trees/points - APENAS LÊ CSV PROCESSADO
+app.get('/api/geo/trees/points', async (req, res) => {
+  try {
+    const { limit = 5000, offset = 0, bairro } = req.query;
+    
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const csvPath = path.join('/data', 'censo_arboreo_processed.csv');
+    
+    if (!fs.existsSync(csvPath)) {
+      return res.status(404).json({
+        message: 'CSV file not found',
+        success: false
+      });
+    }
+
+    // LER CSV - SEM PROCESSAMENTO
+    const csvData = fs.readFileSync(csvPath, 'utf-8');
+    let trees = parseCSV(csvData);
+    
+    // Filter by bairro if specified
+    if (bairro) {
+      trees = trees.filter(t => t.bairro_nome === bairro);
+    }
+    
+    // Apply pagination
+    const startIdx = parseInt(offset);
+    const endIdx = startIdx + parseInt(limit);
+    const paginatedTrees = trees.slice(startIdx, endIdx);
+    
+    // Convert to GeoJSON format
+    const features = paginatedTrees.map(tree => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [tree.lng, tree.lat]
+      },
+      properties: {
+        nome_popul: tree.nome_popul,
+        altura: tree.altura,
+        dap: tree.dap,
+        copa: tree.copa,
+        porte_esp: tree.porte_esp,
+        bairro_nome: tree.bairro_nome,
+        rpa: tree.rpa
+      }
+    }));
+
+    res.json({
+      data: {
+        type: 'FeatureCollection',
+        features,
+        metadata: {
+          total: trees.length,
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          returned: features.length
+        }
+      },
+      message: 'Tree points retrieved successfully',
+      success: true
+    });
+  } catch (error) {
+    console.error('Error fetching tree points:', error);
+    res.status(500).json({
+      message: 'Failed to retrieve tree points',
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/geo/bairros - Get neighborhoods boundaries (polygons)
+// Returns: GeoJSON FeatureCollection with bairro polygons
+app.get('/api/geo/bairros', async (req, res) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const bairrosPath = path.join('/data', 'bairros.geojson');
+    
+    if (!fs.existsSync(bairrosPath)) {
+      return res.status(404).json({
+        message: 'Bairros GeoJSON file not found',
+        success: false
+      });
+    }
+
+    const bairrosData = JSON.parse(fs.readFileSync(bairrosPath, 'utf-8'));
+
+    res.json({
+      data: bairrosData,
+      message: 'Bairros boundaries retrieved successfully',
+      success: true
+    });
+  } catch (error) {
+    console.error('Error fetching bairros:', error);
+    res.status(500).json({
+      message: 'Failed to retrieve bairros',
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/geo/trees/by-bairro - APENAS LÊ CSV AGREGADO
+app.get('/api/geo/trees/by-bairro', async (req, res) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const csvPath = path.join('/data', 'bairro_stats.csv');
+    
+    if (!fs.existsSync(csvPath)) {
+      return res.status(404).json({
+        message: 'Bairro stats CSV not found',
+        success: false
+      });
+    }
+
+    // LER CSV AGREGADO - SEM PROCESSAMENTO
+    const csvData = fs.readFileSync(csvPath, 'utf-8');
+    const result = parseCSV(csvData).map(row => ({
+      bairro: row.bairro,
+      sigla: row.bairro, // CSV não tem sigla separada
+      rpa: row.rpa,
+      quantidade: parseInt(row.quantidade),
+      densidade: parseFloat(row.densidade), // Usar a densidade já calculada
+      mediaAltura: parseFloat(row.mediaAltura),
+      mediaDap: parseFloat(row.mediaDap),
+      mediaCopa: parseFloat(row.mediaCopa),
+      portes: JSON.parse(row.portes), // Parse do JSON que está no CSV
+      topEspecies: JSON.parse(row.topEspecies) // Parse do JSON que está no CSV
+    }));
+
+    res.json({
+      data: result,
+      message: 'Tree statistics by bairro retrieved successfully',
+      success: true,
+      metadata: {
+        totalBairros: result.length,
+        totalArvores: result.reduce((sum, b) => sum + b.quantidade, 0)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching trees by bairro:', error);
+    res.status(500).json({
+      message: 'Failed to retrieve trees by bairro',
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/geo/trees/heatmap - APENAS LÊ CSV AGREGADO
+app.get('/api/geo/trees/heatmap', async (req, res) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const csvPath = path.join('/data', 'heatmap_data.csv');
+    
+    if (!fs.existsSync(csvPath)) {
+      return res.status(404).json({
+        message: 'Heatmap data CSV not found',
+        success: false
+      });
+    }
+
+    // LER CSV AGREGADO - SEM PROCESSAMENTO
+    const csvData = fs.readFileSync(csvPath, 'utf-8');
+    const coordinates = parseCSV(csvData).map(row => ({
+      lat: parseFloat(row.lat),
+      lng: parseFloat(row.lng),
+      weight: 1
+    }));
+
+    res.json({
+      data: coordinates,
+      message: 'Heatmap data retrieved successfully',
+      success: true,
+      metadata: {
+        total: coordinates.length,
+        sampled: coordinates.length
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching heatmap data:', error);
+    res.status(500).json({
+      message: 'Failed to retrieve heatmap data',
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/geo/trees/stats - APENAS LÊ CSV AGREGADO
+app.get('/api/geo/trees/stats', async (req, res) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const csvPath = path.join('/data', 'global_stats.csv');
+    
+    if (!fs.existsSync(csvPath)) {
+      return res.status(404).json({
+        message: 'Global stats CSV not found',
+        success: false
+      });
+    }
+
+    // LER CSV AGREGADO - SEM PROCESSAMENTO
+    const csvData = fs.readFileSync(csvPath, 'utf-8');
+    const rows = parseCSV(csvData);
+    
+    if (rows.length === 0) {
+      return res.status(500).json({
+        message: 'Global stats CSV is empty',
+        success: false
+      });
+    }
+    
+    const statsRow = rows[0]; // Só tem uma linha no global_stats.csv
+    
+    const result = {
+      totalArvores: parseInt(statsRow.totalArvores),
+      distribuicao: {
+        porPorte: JSON.parse(statsRow.distribuicaoPorte),
+        porRpa: JSON.parse(statsRow.distribuicaoRpa),
+        porTipologia: {} // Não temos isso no CSV, retornar vazio
+      },
+      topEspecies: JSON.parse(statsRow.topEspecies),
+      totalEspecies: parseInt(statsRow.totalEspecies),
+      caracteristicas: {
+        altura: { media: parseFloat(statsRow.alturaMedia) },
+        dap: { media: parseFloat(statsRow.dapMedio) },
+        copa: { media: parseFloat(statsRow.copaMedia) }
+      }
+    };
+
+    res.json({
+      data: result,
+      message: 'Tree census statistics retrieved successfully',
+      success: true
+    });
+  } catch (error) {
+    console.error('Error fetching tree statistics:', error);
+    res.status(500).json({
+      message: 'Failed to retrieve tree statistics',
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Start server
 const startServer = async () => {
   try {

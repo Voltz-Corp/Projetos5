@@ -21,6 +21,7 @@ services:
       - "3001:3001"
     volumes:
       - ./backend:/app
+      - ./data:/data
       - /app/node_modules
     environment:
       - NODE_ENV=development

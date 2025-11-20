@@ -23,6 +23,7 @@ const Index = lazy(() => import("@/pages/Index"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const Relatorios = lazy(() => import("@/pages/Relatorios"));
 const Chamados = lazy(() => import("@/pages/Chamados"));
+const CensoArboreo = lazy(() => import("@/pages/CensoArboreo"));
 
 const App = () => {
   return (
@@ -43,6 +44,7 @@ const App = () => {
                 <Route path="/" element={<Index />} />
                 <Route path="/relatorios" element={<Relatorios />} />
                 <Route path="/chamados" element={<Chamados />} />
+                <Route path="/censo-arboreo" element={<CensoArboreo />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
