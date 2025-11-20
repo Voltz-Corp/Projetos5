@@ -27,7 +27,18 @@ import {
 } from "recharts";
 import { PageLoader } from "@/components";
 import { useBairros, useBairroStats, useTreeStats } from "@/hooks/use-geo-data";
-import { MessageSquare, TreeDeciduous } from "lucide-react";
+import {
+  Diameter,
+  ListOrdered,
+  Map,
+  MessageSquare,
+  PieChartIcon,
+  Ruler,
+  TreeDeciduous,
+  TreePine,
+  Trees,
+  BarChart2,
+} from "lucide-react";
 
 const normalizeString = (str: string) => {
   if (!str) return "";
@@ -183,10 +194,11 @@ export default function CensoArboreo() {
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="bg-gradient-to-br from-blue-50/60 to-cyan-50/60 dark:from-blue-900/10 dark:to-cyan-900/10">
-            <CardHeader className="pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Total de Árvores
               </CardTitle>
+              <TreePine className="text-blue-600" size={20} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -196,10 +208,11 @@ export default function CensoArboreo() {
           </Card>
 
           <Card className="bg-gradient-to-br from-blue-50/60 to-cyan-50/60 dark:from-blue-900/10 dark:to-cyan-900/10">
-            <CardHeader className="pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Total de Espécies
               </CardTitle>
+              <Trees className="text-amber-600" size={20} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -209,10 +222,11 @@ export default function CensoArboreo() {
           </Card>
 
           <Card className="bg-gradient-to-br from-blue-50/60 to-cyan-50/60 dark:from-blue-900/10 dark:to-cyan-900/10">
-            <CardHeader className="pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Altura Média
               </CardTitle>
+              <Ruler className="text-sky-600" size={20} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -222,10 +236,11 @@ export default function CensoArboreo() {
           </Card>
 
           <Card className="bg-gradient-to-br from-blue-50/60 to-cyan-50/60 dark:from-blue-900/10 dark:to-cyan-900/10">
-            <CardHeader className="pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 DAP Médio
               </CardTitle>
+              <Diameter className="text-purple-600" size={20} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -246,7 +261,14 @@ export default function CensoArboreo() {
           <TabsContent value="mapa" className="space-y-4">
             <Card className="bg-gradient-to-br from-blue-50/60 to-cyan-50/60 dark:from-blue-900/10 dark:to-cyan-900/10">
               <CardHeader>
-                <CardTitle>Densidade de Árvores por Bairro</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Map className="text-blue-600" />
+                  Densidade de Árvores por Bairro
+                </CardTitle>
+                <p className="text-sm text-muted-foreground pt-2">
+                  Mapa interativo mostrando a densidade de árvores em cada
+                  bairro.
+                </p>
               </CardHeader>
               <CardContent>
                 <div style={{ height: "600px", width: "100%" }}>
@@ -437,7 +459,13 @@ export default function CensoArboreo() {
           <TabsContent value="ranking">
             <Card>
               <CardHeader>
-                <CardTitle>Top 10 Bairros com Maior Densidade</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <ListOrdered className="text-blue-600" />
+                  Top 10 Bairros com Maior Densidade
+                </CardTitle>
+                <p className="text-sm text-muted-foreground pt-2">
+                  Lista dos 10 bairros com a maior quantidade de árvores.
+                </p>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -490,7 +518,14 @@ export default function CensoArboreo() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Quantidade por Bairro (Top 10)</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart2 className="text-blue-600" />
+                    Quantidade por Bairro (Top 10)
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground pt-2">
+                    Visualização dos 10 bairros com maior número de árvores
+                    registradas.
+                  </p>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -513,7 +548,13 @@ export default function CensoArboreo() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Distribuição por Porte</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <PieChartIcon className="text-amber-600" />
+                    Distribuição por Porte
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground pt-2">
+                    Classificação das árvores com base em seu porte (tamanho).
+                  </p>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -543,7 +584,14 @@ export default function CensoArboreo() {
 
               <Card className="md:col-span-2">
                 <CardHeader>
-                  <CardTitle>Top 10 Espécies Mais Comuns</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Trees className="text-sky-600" />
+                    Top 10 Espécies Mais Comuns
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground pt-2">
+                    Ranking das 10 espécies de árvores mais encontradas na
+                    cidade.
+                  </p>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={400}>
