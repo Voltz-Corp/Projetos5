@@ -505,7 +505,7 @@ export default function CensoArboreo() {
                           {bairro.mediaAltura.toFixed(1)}m
                         </TableCell>
                         <TableCell className="text-right">
-                          {bairro.mediaDap.toFixed(1)}cm
+                          {bairro.mediaDap.toFixed(1)}m
                         </TableCell>
                         <TableCell>
                           {bairro.topEspecies[0]?.nome || "N/A"}
